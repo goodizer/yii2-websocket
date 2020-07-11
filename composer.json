@@ -1,0 +1,33 @@
+{
+  "name": "goodizer/yii2-websocket",
+  "description": "Components for Yii2.",
+  "keywords": [
+    "yii2",
+    "websocket",
+    "components"
+  ],
+  "homepage": "https://github.com/goodizer/yii2-websocket",
+  "type": "yii2-components",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Alexey Veretelnik",
+      "email": "alex.in.development@gmail.com",
+      "homepage": "https://github.com/goodizer/yii2-websocket"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/goodizer/yii2-websocket/issues",
+    "source": "https://github.com/goodizer/yii2-websocket"
+  },
+  "autoload": {
+    "psr-4": {
+      "goodizer\\websocket\\": ""
+    }
+  },
+  "require": {
+    "php": "7.3.*",
+    "yiisoft/yii2": "^2.0",
+    "workerman/workerman": "^4.0"
+  }
+}
