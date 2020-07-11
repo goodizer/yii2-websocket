@@ -7,7 +7,7 @@ yii2-helpers
 [![Monthly Downloads](https://poser.pugx.org/goodizer/yii2-websocket/d/monthly)](https://packagist.org/packages/goodizer/yii2-websocket)
 [![Daily Downloads](https://poser.pugx.org/goodizer/yii2-websocket/d/daily)](https://packagist.org/packages/goodizer/yii2-websocket)
 
-Web-socket component for Yii2
+Web-socket component based on workerman/workerman for Yii2
 
 ## Installation
 
