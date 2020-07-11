@@ -19,4 +19,9 @@ class ConnectEvent extends Event
      * @var TcpConnection
      */
     public $connection;
+
+    /**
+     * @var array
+     */
+    public $headers = [];
 }

@@ -41,11 +41,11 @@ Set websocket component config.
         'websocketServer' => [
           'class' => 'goodizer\websocket\Server',
           'commandClass' => 'console\extensions\Commands',//Your class that inherit goodizer\websocket\Commands
-          'host' => 'localhost',
-          'port' => 8000,
-          'isSecure' => true,
-          'localCert' => null,
-          'localPk' => null,
+            'host' => $params['websocketServer']['host'] ?? 'localhost',
+            'port' => $params['websocketServer']['port'] ?? 8000,
+            'isSecure' => $params['websocketServer']['isSecure'] ?? false,
+            'localCert' => $params['websocketServer']['localCert'] ?? null,
+            'localPk' => $params['websocketServer']['localPk'] ?? null,
         ],
         ...
     ],
@@ -73,9 +73,8 @@ class WebsocketServerController extends Controller
   public function actionStart()
   {
     /** @var Server $server */
-    $server = Yii::$app->webSocketServer;
-
-    $server->run();
+    $server = Yii::$app->websocketServer;
+    $server->start();
   }
 }
 ```

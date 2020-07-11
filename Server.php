@@ -84,6 +84,7 @@ class Server extends Component
         Event::on(static::class, static::EVENT_CONNECT, [$command, 'onConnect']);
         Event::on(static::class, static::EVENT_DISCONNECT, [$command, 'onDisconnect']);
         Event::on(static::class, static::EVENT_MESSAGE, [$command, 'onMessage']);
+        Event::on(static::class, static::EVENT_ERROR, [$command, 'onError']);
 
         $context = [];
 
@@ -107,15 +108,32 @@ class Server extends Component
         }
 
         // Emitted when new connection come
-        $this->worker->onWebSocketConnect = function (TcpConnection $connection) {
-            Event::trigger(Yii::$app->get('webSocketServer'), static::EVENT_CONNECT, new ConnectEvent([
-                'connection' => $connection
+        $this->worker->onConnect = function (TcpConnection $connection) {
+//            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_CONNECT, new ConnectEvent([
+//                'connection' => $connection
+//            ]));
+        };
+
+        // Emitted when client is connected
+        $this->worker->onWebSocketConnect  = function (TcpConnection $connection, $rawHeaders) {
+            $headers = [];
+
+            foreach (preg_split("/\r\n/", rtrim($rawHeaders)) as $line) {
+                $line = chop($line);
+                if (preg_match('/\A(\S+): (.*)\z/', $line, $matches)) {
+                    $headers[trim($matches[1])] = trim($matches[2]);
+                }
+            }
+
+            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_CONNECT, new ConnectEvent([
+                'connection' => $connection,
+                'headers' => $headers,
             ]));
         };
 
         // Emitted when connection closed
         $this->worker->onClose = function (TcpConnection $connection) {
-            Event::trigger(Yii::$app->get('webSocketServer'), static::EVENT_DISCONNECT, new DisconnectEvent([
+            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_DISCONNECT, new DisconnectEvent([
                 'connection' => $connection,
             ]));
         };
@@ -123,7 +141,7 @@ class Server extends Component
         // Emitted when data received
         $this->worker->onMessage = function (TcpConnection $connection, $data) {
             try {
-                Event::trigger(Yii::$app->get('webSocketServer'), static::EVENT_MESSAGE, new MessageEvent([
+                Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_MESSAGE, new MessageEvent([
                     'connection' => $connection,
                     'receivedData' => Json::decode($data),
                 ]));
@@ -133,7 +151,7 @@ class Server extends Component
         };
 
         $this->worker->onError = function ($connection, $code, $message) {
-            Event::trigger(Yii::$app->get('webSocketServer'), static::EVENT_ERROR, new ErrorEvent([
+            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_ERROR, new ErrorEvent([
                 'connection' => $connection,
                 'code' => $code,
                 'message' => $message,
@@ -149,11 +167,11 @@ class Server extends Component
         global $argv;
 
         //Replace command arguments for Workerman
-        $argv[0] = $argv[1];
-        $argv[1] = 'start';
+        //$argv[0] = $argv[1];
+        //$argv[1] = 'start';
 
         if ($this->daemonMode) {
-            $argv[2] = '-d';
+            //$argv[2] = '-d';
             Worker::$daemonize = true;
         }
 
