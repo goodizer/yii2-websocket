@@ -107,13 +107,6 @@ class Server extends Component
             $this->worker->transport = 'ssl';
         }
 
-        // Emitted when new connection come
-        $this->worker->onConnect = function (TcpConnection $connection) {
-//            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_CONNECT, new ConnectEvent([
-//                'connection' => $connection
-//            ]));
-        };
-
         // Emitted when client is connected
         $this->worker->onWebSocketConnect  = function (TcpConnection $connection, $rawHeaders) {
             $headers = [];
@@ -164,7 +157,7 @@ class Server extends Component
      */
     public function start()
     {
-        global $argv;
+        //global $argv;
 
         //Replace command arguments for Workerman
         //$argv[0] = $argv[1];
@@ -187,11 +180,11 @@ class Server extends Component
      */
     public function stop()
     {
-        global $argv;
+        //global $argv;
 
         //Replace command arguments for Workerman
-        $argv[0] = $argv[1];
-        $argv[1] = 'stop';
+        //$argv[0] = $argv[1];
+        //$argv[1] = 'stop';
 
         Worker::stopAll();
     }
