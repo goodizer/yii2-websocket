@@ -22,7 +22,7 @@
   },
   "autoload": {
     "psr-4": {
-      "goodizer\\websocket\\": ""
+      "goodizer\\websocket\\": "src"
     }
   },
   "require": {
