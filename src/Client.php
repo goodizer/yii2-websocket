@@ -4,6 +4,7 @@ namespace goodizer\websocket;
 
 use yii\base\Component;
 use yii\helpers\Json;
+use yii\helpers\VarDumper;
 use Workerman\Worker;
 use Workerman\Connection\AsyncTcpConnection;
 
@@ -39,7 +40,7 @@ class Client extends Component
     public $localPk;
 
     /**
-     * Init properties
+     * Init properties, Yii events and Worker events
      */
     public function init()
     {
@@ -80,15 +81,14 @@ class Client extends Component
                 global $clientData;
 
                 $connection->send(Json::encode($clientData));
-                $worker->stop();
             };
-            $wsConnection->onMessage = function ($connection, $data) {
+            $wsConnection->onMessage = function (AsyncTcpConnection $connection, $data) {
                 echo "onMessage: $data\r\n";
             };
-            $wsConnection->onError = function ($connection, $code, $msg) {
+            $wsConnection->onError = function (AsyncTcpConnection $connection, $code, $msg) {
                 echo "onError: $msg\r\n";
             };
-            $wsConnection->onClose = function ($connection) {
+            $wsConnection->onClose = function (AsyncTcpConnection $connection) {
                 echo "onClose: {$connection->getSocket()}\r\n\r\n";
             };
             $wsConnection->connect();
