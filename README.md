@@ -82,3 +82,11 @@ class WebsocketServerController extends Controller
 ... and run in the console:
 
 \#php yii websocket-server\start
+
+For send data to server from backend as client:
+
+```php
+    /** @var goodizer\websocket\Client $client */
+    $client = Yii::$app->get('websocketClient');
+    $client->send(json_encode(['method' => 'foo', 'params' => ['bar' => true]]));
+```
