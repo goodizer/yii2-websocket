@@ -68,6 +68,11 @@ class Server extends Component
     public $daemonMode = false;
 
     /**
+     * @var bool
+     */
+    public $reloadOnError = false;
+
+    /**
      * @var array The registration users ids for connections
      */
     public $clients = [];
@@ -154,24 +159,31 @@ class Server extends Component
 
     /**
      * Run workers
+     *
+     * @throws Exception
      */
     public function start()
     {
-        //global $argv;
+        if (static::isLinux()) {
+            //Replace command Workerman arguments for Linux systems
+            global $argv;
 
-        //Replace command arguments for Workerman
-        //$argv[0] = $argv[1];
-        //$argv[1] = 'start';
+            $argv[0] = $argv[1];
+            $argv[1] = 'start';
 
-        if ($this->daemonMode) {
-            //$argv[2] = '-d';
-            Worker::$daemonize = true;
+            if ($this->daemonMode) {
+                $argv[2] = '-d';
+            }
+        } else {
+            if ($this->daemonMode) {
+                Worker::$daemonize = true;
+            }
         }
 
         try {
             Worker::runAll();
         } catch (Exception $e) {
-            $this->reloadWorker($e);
+            $this->stopOrReloadWorker($e);
         }
     }
 
@@ -180,11 +192,13 @@ class Server extends Component
      */
     public function stop()
     {
-        //global $argv;
+        if (static::isLinux()) {
+            //Replace command Workerman arguments for Linux systems
+            global $argv;
 
-        //Replace command arguments for Workerman
-        //$argv[0] = $argv[1];
-        //$argv[1] = 'stop';
+            $argv[0] = $argv[1];
+            $argv[1] = 'stop';
+        }
 
         Worker::stopAll();
     }
@@ -233,17 +247,37 @@ class Server extends Component
 
     /**
      * @param Exception $exception
+     * @throws Exception
      */
-    protected function reloadWorker($exception)
+    protected function stopOrReloadWorker($exception)
     {
+        if (!$this->reloadOnError) {
+            Worker::stopAll();
+
+            throw $exception;
+        }
+
         print_r([
             'error' => $exception->getMessage(),
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),
             //'trace' => $e->getTraceAsString(),
         ]);
-        echo "\r\n\r\nreloadAllWorkers\r\n";
+        echo "\r\n\r\nReload all workers...\r\n";
 
         Worker::reloadAllWorkers();
+    }
+
+    /**
+     * Function to check operating system
+     *
+     * @return bool
+     */
+    public static function isLinux()
+    {
+        if (strtoupper(substr(PHP_OS, 0, 3)) == 'LINUX')
+            return true;
+        else
+            return false;
     }
 }
