@@ -4,6 +4,7 @@ namespace goodizer\websocket;
 
 use Yii;
 use yii\base\Event;
+use yii\base\InvalidConfigException;
 use yii\helpers\Json;
 use yii\base\Component;
 use Exception;
@@ -84,12 +85,20 @@ class Server extends Component
     {
         parent::init();
 
+        if (!$this->commandClass) {
+            throw new InvalidConfigException('Property "commandClass" must be set.');
+        }
+
+        if (!class_exists($this->commandClass)) {
+            throw new InvalidConfigException("Command class not exist: {$this->commandClass}");
+        }
+
         $command = new $this->commandClass();
 
-        Event::on(static::class, static::EVENT_CONNECT, [$command, 'onConnect']);
-        Event::on(static::class, static::EVENT_DISCONNECT, [$command, 'onDisconnect']);
-        Event::on(static::class, static::EVENT_MESSAGE, [$command, 'onMessage']);
-        Event::on(static::class, static::EVENT_ERROR, [$command, 'onError']);
+        $this->on(static::EVENT_CONNECT, [$command, 'onConnect']);
+        $this->on(static::EVENT_DISCONNECT, [$command, 'onDisconnect']);
+        $this->on(static::EVENT_MESSAGE, [$command, 'onMessage']);
+        $this->on(static::EVENT_ERROR, [$command, 'onError']);
 
         $context = [];
 
@@ -122,8 +131,7 @@ class Server extends Component
                     $headers[trim($matches[1])] = trim($matches[2]);
                 }
             }
-
-            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_CONNECT, new ConnectEvent([
+            $this->trigger(static::EVENT_CONNECT, new ConnectEvent([
                 'connection' => $connection,
                 'headers' => $headers,
             ]));
@@ -131,7 +139,7 @@ class Server extends Component
 
         // Emitted when connection closed
         $this->worker->onClose = function (TcpConnection $connection) {
-            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_DISCONNECT, new DisconnectEvent([
+            $this->trigger(static::EVENT_DISCONNECT, new DisconnectEvent([
                 'connection' => $connection,
             ]));
         };
@@ -139,7 +147,7 @@ class Server extends Component
         // Emitted when data received
         $this->worker->onMessage = function (TcpConnection $connection, $data) {
             try {
-                Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_MESSAGE, new MessageEvent([
+                $this->trigger(static::EVENT_MESSAGE, new MessageEvent([
                     'connection' => $connection,
                     'receivedData' => Json::decode($data),
                 ]));
@@ -149,7 +157,7 @@ class Server extends Component
         };
 
         $this->worker->onError = function ($connection, $code, $message) {
-            Event::trigger(Yii::$app->get('websocketServer'), static::EVENT_ERROR, new ErrorEvent([
+            $this->trigger(static::EVENT_ERROR, new ErrorEvent([
                 'connection' => $connection,
                 'code' => $code,
                 'message' => $message,
@@ -217,7 +225,7 @@ class Server extends Component
                 'exceptClientIds' => [],
             ];
 
-        $msg = json_encode($msg);
+        $msg = Json::encode($msg);
 
         foreach ($this->worker->connections as $connection) {
             /** @var TcpConnection $connection */
