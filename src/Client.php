@@ -89,13 +89,13 @@ class Client extends Component
         }
 
         $masked = true;
-        $payload_length = strlen($payload);
-        $fragment_cursor = 0;
+        $payloadLength = strlen($payload);
+        $fragmentCursor = 0;
 
-        while ($payload_length > $fragment_cursor) {
-            $sub_payload = substr($payload, $fragment_cursor, $this->fragmentSize);
-            $fragment_cursor += $this->fragmentSize;
-            $final = $payload_length <= $fragment_cursor;
+        while ($payloadLength > $fragmentCursor) {
+            $sub_payload = substr($payload, $fragmentCursor, $this->fragmentSize);
+            $fragmentCursor += $this->fragmentSize;
+            $final = $payloadLength <= $fragmentCursor;
 
             $this->sendFragment($final, $sub_payload, $masked);
         }
@@ -122,14 +122,24 @@ class Client extends Component
 
         $socketUri = "{$this->host}:{$this->port}";
 
-        $this->_socket = \stream_socket_client(
-            "{$transport}://{$socketUri}",
-            $errno,
-            $errstr,
-            $this->timeout,
-            \STREAM_CLIENT_ASYNC_CONNECT,
-            !empty($contextOptions) ? \stream_context_create($contextOptions) : null
-        );
+        if (!empty($contextOptions)) {
+            $this->_socket = \stream_socket_client(
+                "{$transport}://{$socketUri}",
+                $errno,
+                $errstr,
+                $this->timeout,
+                \STREAM_CLIENT_ASYNC_CONNECT,
+                \stream_context_create($contextOptions)
+            );
+        } else {
+            $this->_socket = \stream_socket_client(
+                "{$transport}://{$socketUri}",
+                $errno,
+                $errstr,
+                $this->timeout,
+                \STREAM_CLIENT_ASYNC_CONNECT
+            );
+        }
 
         if (!$this->_socket || !\is_resource($this->_socket)) {
             throw new Exception($errstr);
@@ -180,27 +190,27 @@ class Client extends Component
      */
     protected function sendFragment($final, $payload, $masked)
     {
-        $binstr = '';
-        $binstr .= (bool)$final ? '1' : '0';
-        $binstr .= '000';
-        $binstr .= sprintf('%04b', 1);
-        $binstr .= $masked ? '1' : '0';
-        $payload_length = strlen($payload);
-        if ($payload_length > 65535) {
-            $binstr .= decbin(127);
-            $binstr .= sprintf('%064b', $payload_length);
-        } elseif ($payload_length > 125) {
-            $binstr .= decbin(126);
-            $binstr .= sprintf('%016b', $payload_length);
+        $binStr = '';
+        $binStr .= (bool)$final ? '1' : '0';
+        $binStr .= '000';
+        $binStr .= sprintf('%04b', 1);
+        $binStr .= $masked ? '1' : '0';
+        $payloadLength = strlen($payload);
+        if ($payloadLength > 65535) {
+            $binStr .= decbin(127);
+            $binStr .= sprintf('%064b', $payloadLength);
+        } elseif ($payloadLength > 125) {
+            $binStr .= decbin(126);
+            $binStr .= sprintf('%016b', $payloadLength);
         } else {
-            $binstr .= sprintf('%07b', $payload_length);
+            $binStr .= sprintf('%07b', $payloadLength);
         }
 
         $frame = '';
         $mask = '';
 
         // Write frame head to frame.
-        foreach (str_split($binstr, 8) as $str) {
+        foreach (str_split($binStr, 8) as $str) {
             $frame .= chr(bindec($str));
         }
 
@@ -215,7 +225,7 @@ class Client extends Component
         }
 
         // Append payload to frame:
-        for ($i = 0; $i < $payload_length; $i++) {
+        for ($i = 0; $i < $payloadLength; $i++) {
             $frame .= ($masked === true) ? $payload[$i] ^ $mask[$i % 4] : $payload[$i];
         }
 
@@ -244,10 +254,10 @@ class Client extends Component
     protected static function generateKey()
     {
         $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"$&/()=[]{}0123456789';
-        $chars_length = strlen($chars);
+        $charsLength = strlen($chars);
         $key = '';
 
-        for ($i = 0; $i < 16; $i++) $key .= $chars[mt_rand(0, $chars_length - 1)];
+        for ($i = 0; $i < 16; $i++) $key .= $chars[mt_rand(0, $charsLength - 1)];
 
         return base64_encode($key);
     }
