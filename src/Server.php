@@ -152,7 +152,7 @@ class Server extends Component
                     'receivedData' => Json::decode($data),
                 ]));
             } catch (Exception $e) {
-                $this->reloadWorker($e);
+                $this->stopOrReloadWorker($e);
             }
         };
 
