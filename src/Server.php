@@ -275,7 +275,7 @@ class Server extends Component
      */
     public static function isLinux()
     {
-        if (strtoupper(substr(PHP_OS, 0, 3)) == 'LINUX')
+        if (strtoupper(substr(PHP_OS, 0, 3)) == 'LIN')
             return true;
         else
             return false;
