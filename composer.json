@@ -5,7 +5,7 @@
     "yii2",
     "websocket",
     "ratchet",
-    "components",
+    "components"
   ],
   "homepage": "https://github.com/goodizer/yii2-websocket",
   "type": "yii2-components",
