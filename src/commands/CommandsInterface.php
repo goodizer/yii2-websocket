@@ -1,6 +1,6 @@
 <?php
 
-namespace goodizer\websocket;
+namespace goodizer\websocket\commands;
 
 use goodizer\websocket\events\ConnectEvent;
 use goodizer\websocket\events\DisconnectEvent;
@@ -9,7 +9,7 @@ use goodizer\websocket\events\ErrorEvent;
 
 /**
  * Interface CommandsInterface
- * @package goodizer\websocket
+ * @package goodizer\websocket\commands
  */
 interface CommandsInterface
 {

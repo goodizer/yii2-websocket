@@ -3,289 +3,207 @@
 namespace goodizer\websocket;
 
 use Yii;
-use yii\base\Event;
-use yii\base\InvalidConfigException;
-use yii\helpers\Json;
 use yii\base\Component;
-use Exception;
-use Workerman\Worker;
-use Workerman\Connection\TcpConnection;
-use goodizer\websocket\events\ConnectEvent;
-use goodizer\websocket\events\DisconnectEvent;
-use goodizer\websocket\events\MessageEvent;
-use goodizer\websocket\events\ErrorEvent;
+use yii\base\InvalidConfigException;
+use yii\console\Exception;
+use yii\helpers\ArrayHelper;
+use yii\helpers\Console;
+use yii\log\FileTarget;
+use goodizer\websocket\helpers\StatHelper;
+use goodizer\websocket\extensions\ServerWrapper;
 
 /**
  * Class Server
- * @package app\components\yii2\websocket
+ * @package goodizer\websocket
  */
 class Server extends Component
 {
-    const EVENT_CONNECT = 'gdr-ws-connect';
-    const EVENT_DISCONNECT = 'gdr-ws-disconnect';
-    const EVENT_MESSAGE = 'gdr-ws-message';
-    const EVENT_ERROR = 'gdr-ws-error';
+  const LOG_TRACE_MAX_LEVEL = 5;
 
-    /**
-     * @var Worker
-     */
-    protected $worker;
+  /**
+   * @var string
+   */
+  public $host = 'localhost';
 
-    /**
-     * Class with methods which handle received data and return handled data for send to connections
-     *
-     * @var string
-     */
-    public $commandClass;
+  /**
+   * @var string
+   */
+  public $address = '0.0.0.0';
 
-    /**
-     * @var string
-     */
-    public $host = 'localhost';
+  /**
+   * @var int
+   */
+  public $port = 8000;
 
-    /**
-     * @var int
-     */
-    public $port = 8000;
+  /**
+   * @var string
+   */
+  public $protocol = 'ws';
 
-    /**
-     * @var bool
-     */
-    public $isSecure = true;
+  /**
+   * Class names of commands handlers
+   * @var string[]
+   */
+  public $commands;
 
-    /**
-     * @var string
-     */
-    public $localCert;
+  /**
+   * @var string local cert
+   */
+  public $localCert;
 
-    /**
-     * @var string
-     */
-    public $localPk;
+  /**
+   * @var string local primary key
+   */
+  public $localPk;
 
-    /**
-     * @var bool
-     */
-    public $daemonMode = false;
+  /**
+   * @var string pass for cert
+   */
+  public $certPassphrase;
 
-    /**
-     * @var bool
-     */
-    public $reloadOnError = false;
+  /**
+   * @var ServerWrapper
+   */
+  private $_server;
 
-    /**
-     * @var array The registration users ids for connections
-     */
-    public $clients = [];
+  /**
+   * @inheritDoc
+   */
+  public function init()
+  {
+    parent::init();
 
-    /**
-     * Init properties, Yii events and Worker events
-     */
-    public function init()
-    {
-        parent::init();
-
-        if (!$this->commandClass) {
-            throw new InvalidConfigException('Property "commandClass" must be set.');
-        }
-
-        if (!class_exists($this->commandClass)) {
-            throw new InvalidConfigException("Command class not exist: {$this->commandClass}");
-        }
-
-        $command = new $this->commandClass();
-
-        $this->on(static::EVENT_CONNECT, [$command, 'onConnect']);
-        $this->on(static::EVENT_DISCONNECT, [$command, 'onDisconnect']);
-        $this->on(static::EVENT_MESSAGE, [$command, 'onMessage']);
-        $this->on(static::EVENT_ERROR, [$command, 'onError']);
-
-        $context = [];
-
-        if ($this->isSecure && $this->localCert && $this->localPk) {
-            $context = [
-                'ssl' => [
-                    'local_cert' => $this->localCert,
-                    'local_pk' => $this->localPk,
-                    'verify_peer' => false,
-                ]
-            ];
-        }
-
-        // Create a Websocket server
-        $this->worker = new Worker("websocket://{$this->host}:{$this->port}", $context);
-        // 4 processes
-        $this->worker->count = 4;
-
-        if ($this->isSecure) {
-            $this->worker->transport = 'ssl';
-        }
-
-        // Emitted when client is connected
-        $this->worker->onWebSocketConnect  = function (TcpConnection $connection, $rawHeaders) {
-            $headers = [];
-
-            foreach (preg_split("/\r\n/", rtrim($rawHeaders)) as $line) {
-                $line = chop($line);
-                if (preg_match('/\A(\S+): (.*)\z/', $line, $matches)) {
-                    $headers[trim($matches[1])] = trim($matches[2]);
-                }
-            }
-            $this->trigger(static::EVENT_CONNECT, new ConnectEvent([
-                'connection' => $connection,
-                'headers' => $headers,
-            ]));
-        };
-
-        // Emitted when connection closed
-        $this->worker->onClose = function (TcpConnection $connection) {
-            $this->trigger(static::EVENT_DISCONNECT, new DisconnectEvent([
-                'connection' => $connection,
-            ]));
-        };
-
-        // Emitted when data received
-        $this->worker->onMessage = function (TcpConnection $connection, $data) {
-            try {
-                $this->trigger(static::EVENT_MESSAGE, new MessageEvent([
-                    'connection' => $connection,
-                    'receivedData' => Json::decode($data),
-                ]));
-            } catch (Exception $e) {
-                $this->stopOrReloadWorker($e);
-            }
-        };
-
-        $this->worker->onError = function ($connection, $code, $message) {
-            $this->trigger(static::EVENT_ERROR, new ErrorEvent([
-                'connection' => $connection,
-                'code' => $code,
-                'message' => $message,
-            ]));
-        };
+    if (empty($this->commands) || !is_array($this->commands)) {
+      throw new InvalidConfigException("Property 'commands' must be an arrays configs");
     }
 
-    /**
-     * Run workers
-     *
-     * @throws Exception
-     */
-    public function start()
-    {
-        if (static::isLinux()) {
-            //Replace command Workerman arguments for Linux systems
-            global $argv;
-
-            $argv[0] = $argv[1];
-            $argv[1] = 'start';
-
-            if ($this->daemonMode) {
-                $argv[2] = '-d';
-            }
-        } else {
-            if ($this->daemonMode) {
-                Worker::$daemonize = true;
-            }
-        }
-
-        try {
-            Worker::runAll();
-        } catch (Exception $e) {
-            $this->stopOrReloadWorker($e);
-        }
+    if (!$this->address || !$this->host || !$this->port) {
+      throw new InvalidConfigException("Properties 'address', 'host' and 'port' are required");
     }
 
-    /**
-     * Stop workers
-     */
-    public function stop()
-    {
-        if (static::isLinux()) {
-            //Replace command Workerman arguments for Linux systems
-            global $argv;
-
-            $argv[0] = $argv[1];
-            $argv[1] = 'stop';
-        }
-
-        Worker::stopAll();
+    /** Disable file log, cause socket server will down */
+      foreach (Yii::$app->getLog()->targets as $k => $target) {
+      if ($k == 'file' || $target instanceof FileTarget) {
+        $target->enabled = false;
+      }
     }
 
-    /**
-     * @param array $msg Сообщение
-     * @param array $params Options of a target for sending message
-     * @throws Exception
-     */
-    public function sendMessage(array $msg, array $params = [])
-    {
-        $params = $params + [
-                'connectionId' => null,
-                'exceptConnectionId' => null,
-                'clientIds' => [],
-                'exceptClientIds' => [],
-            ];
+    defined('WEB_SOCKET_ENABLE_LOG') or define('WEB_SOCKET_ENABLE_LOG', false);
+    defined('WEB_SOCKET_DISABLE_DEV_MODE') or define('WEB_SOCKET_DISABLE_DEV_MODE', false);
+    putenv('RATCHET_DISABLE_XDEBUG_WARN=true');
 
-        $msg = Json::encode($msg);
+    $sslContext = [];
 
-        foreach ($this->worker->connections as $connection) {
-            /** @var TcpConnection $connection */
-            $cid = intval($connection->getSocket());
+    if ($this->localCert && $this->localPk) {
+      if (!file_exists($this->localCert)) {
+        throw new InvalidConfigException("Certificate file does not exist. '{$this->localCert}'");
+      }
 
-            // Sent message by connection ID
-            if ($params['connectionId'] !== null && $params['connectionId'] != $cid)
-                continue;
+      if (!file_exists($this->localPk)) {
+        throw new InvalidConfigException("Privet key file does not exist. '{$this->localPk}'");
+      }
 
-            // Skip by connection ID if exceptConnectionId is specified
-            if ($params['exceptConnectionId'] !== null && $params['exceptConnectionId'] == $cid)
-                continue;
+      $sslContext = [
+        'local_cert' => $this->localCert,
+        'local_pk' => $this->localPk,
+        'passphrase' => (string)$this->certPassphrase,
+        'allow_self_signed' => !WEB_SOCKET_DISABLE_DEV_MODE, // Allow self signed certs (should be false in production)
+        'verify_peer' => false,
+        //'verify_peer_name' => false,
+      ];
 
-            if (isset($this->clients[$cid])) {
-                // Send message to connection by specified client ID
-                if (!empty($params['clientIds']) && !in_array($this->clients[$cid], $params['clientIds']))
-                    continue;
-                // Skip by client ID if exceptClientIds is specified
-                if (!empty($params['exceptClientIds']) && in_array($this->clients[$cid], $params['exceptClientIds']))
-                    continue;
-            }
-
-            // Send the message to the recipient
-            $connection->send($msg);
-        }
+      if (WEB_SOCKET_ENABLE_LOG) {
+        echo Console::ansiFormat("Context for stream_socket:\n", [Console::FG_PURPLE, Console::BOLD]);
+        echo Console::ansiFormat(var_export($sslContext, true). "\n", [Console::ENCIRCLED]);
+      }
     }
 
-    /**
-     * @param Exception $exception
-     * @throws Exception
-     */
-    protected function stopOrReloadWorker($exception)
-    {
-        if (!$this->reloadOnError) {
-            Worker::stopAll();
+    $this->_server = new ServerWrapper($this->host, $this->port, $this->address, $sslContext);
 
-            throw $exception;
-        }
+    foreach ($this->commands as $name => $config) {
+      if (!$class = ArrayHelper::remove($config, 'class')) {
+        throw new InvalidConfigException("Property 'commands' must contain class names");
+      }
+      if (!$path = ArrayHelper::remove($config, 'path')) {
+        throw new InvalidConfigException("Property 'path' must contain class names");
+      }
 
-        print_r([
-            'error' => $exception->getMessage(),
-            'file' => $exception->getFile(),
-            'line' => $exception->getLine(),
-            //'trace' => $e->getTraceAsString(),
-        ]);
-        echo "\r\n\r\nReload all workers...\r\n";
+      $config['id'] = $name;
+      $config['enableLog'] = WEB_SOCKET_ENABLE_LOG;
 
-        Worker::reloadAllWorkers();
+      $this->_server->route($path, new App($class, $config), ['*']);
+    }
+  }
+
+  /**
+   * @var int
+   */
+  private $_retryCounter = 0;
+
+  /**
+   * @throws Exception
+   */
+  public function run()
+  {
+    try {
+      $this->_retryCounter++;
+      $this->_server->run();
+    } catch (\Throwable $e) {
+      echo Console::ansiFormat("\nServer error:\n", [Console::FG_RED, Console::BOLD]);
+      echo Console::ansiFormat("\n{$e->getMessage()}\n#0 {$e->getFile()}({$e->getLine()})\n", [Console::FG_RED, Console::BOLD]);
+      $this->_logFile($e);
+
+      if ($this->_retryCounter >= 100) {
+        echo Console::ansiFormat("\nretry iterations are limited: max 100 retries;\n", [Console::FG_RED, Console::BOLD]);
+        throw new \yii\console\Exception('Retry iterations are limited: max 100 retries', 500, $e);
+      }
+
+      echo Console::ansiFormat("\nRETRY [{$this->_retryCounter}]\n", [Console::FG_GREEN, Console::BOLD]);
+
+      $this->stop();
+      $this->run();
+    }
+  }
+
+  /**
+   * @throws Exception
+   */
+  public function stop()
+  {
+      $this->_server->stop();
+  }
+
+  /**
+   * @param \Throwable $e
+   */
+  private function _logFile(\Throwable $e)
+  {
+    $traces = [];
+    $count = 0;
+    $rows = explode(PHP_EOL, $e->getTraceAsString());
+
+    foreach ($rows as $trace) {
+      $traces[] = $trace;
+      if (++$count >= static::LOG_TRACE_MAX_LEVEL) {
+        $traces[] = '...hidden ' . (sizeof($rows) - $count) . ' lines';
+        break;
+      }
     }
 
-    /**
-     * Function to check operating system
-     *
-     * @return bool
-     */
-    public static function isLinux()
-    {
-        if (strtoupper(substr(PHP_OS, 0, 3)) == 'LIN')
-            return true;
-        else
-            return false;
+    unset($rows);
+
+    $file = date('Y_m_d');
+    $path = Yii::getAlias("@app/runtime/websocket/{$file}.log");
+
+    if (!is_dir(dirname($path))) {
+      mkdir(dirname($path), 0777, true);
     }
+
+    $usage = StatHelper::getLoads();
+    file_put_contents($path, implode(PHP_EOL, [
+        date("Y-m-d H:i:s") . " [" . get_class($e) . "] [{$e->getCode()}] [{$usage}]",
+        $e->getMessage(),
+        implode(PHP_EOL, $traces),
+      ]) . PHP_EOL . PHP_EOL, FILE_APPEND);
+  }
 }

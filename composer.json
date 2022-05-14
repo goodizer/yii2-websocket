@@ -4,7 +4,8 @@
   "keywords": [
     "yii2",
     "websocket",
-    "components"
+    "ratchet",
+    "components",
   ],
   "homepage": "https://github.com/goodizer/yii2-websocket",
   "type": "yii2-components",
@@ -28,6 +29,7 @@
   "require": {
     "php": "^7.3",
     "yiisoft/yii2": "^2.0",
-    "workerman/workerman": "^4.0"
+    "cboden/ratchet": "^0.4.3",
+    "ratchet/pawl": "^0.3.5"
   }
 }
