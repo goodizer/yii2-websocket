@@ -1,4 +1,4 @@
-yii2-helpers
+yii2-websocket
 =================
 
 [![Latest Stable Version](https://img.shields.io/packagist/v/goodizer/yii2-websocket.svg)](https://packagist.org/packages/goodizer/yii2-websocket)
@@ -7,7 +7,7 @@ yii2-helpers
 [![Monthly Downloads](https://poser.pugx.org/goodizer/yii2-websocket/d/monthly)](https://packagist.org/packages/goodizer/yii2-websocket)
 [![Daily Downloads](https://poser.pugx.org/goodizer/yii2-websocket/d/daily)](https://packagist.org/packages/goodizer/yii2-websocket)
 
-Web-socket component based on workerman/workerman for Yii2
+Web-socket component based on ratchet/pawl for Yii2
 
 ## Installation
 
@@ -31,8 +31,6 @@ to the ```require``` section of your `composer.json` file.
 
 ## Usage
 
-### GridSearchHelper
-
 Set websocket component config.
 
 ```php
@@ -41,11 +39,11 @@ Set websocket component config.
         'websocketServer' => [
           'class' => 'goodizer\websocket\Server',
           'commandClass' => 'console\extensions\Commands',//Your class that inherit goodizer\websocket\Commands
-            'host' => $params['websocketServer']['host'] ?? 'localhost',
-            'port' => $params['websocketServer']['port'] ?? 8000,
-            'isSecure' => $params['websocketServer']['isSecure'] ?? false,
-            'localCert' => $params['websocketServer']['localCert'] ?? null,
-            'localPk' => $params['websocketServer']['localPk'] ?? null,
+          'host' => $params['websocketServer']['host'] ?? 'localhost',
+          'port' => $params['websocketServer']['port'] ?? 8000,
+          'isSecure' => $params['websocketServer']['isSecure'] ?? false,
+          'localCert' => $params['websocketServer']['localCert'] ?? null,
+          'localPk' => $params['websocketServer']['localPk'] ?? null,
         ],
         ...
     ],
